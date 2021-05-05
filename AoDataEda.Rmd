@@ -1,0 +1,70 @@
+---
+title: "Focal plane wvaefront sensor data anaylsis"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(R.matlab)
+library(caret)
+
+```
+
+Read in .mat file
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data <- readMat("data/PLWFS_labdata_61219.mat") 
+
+namesZernike <- paste0("zernikeCoeef", seq(1:dim(data$zernike.coeffs)[[2]]))
+namesFlux <- paste0("FluxCoeef", seq(1:dim(data$output.fluxes)[[2]]))
+
+zernikeData <- data$zernike.coeffs %>% as.tibble() %>% set_names(namesZernike)
+zernikeLong <- pivot_longer(zernikeData, cols = starts_with("z"), names_to = "Coefficient", values_to = "value")
+
+fluxData <- data$output.fluxes %>% as.tibble() %>% set_names(namesFlux)
+fluxLong <- pivot_longer(fluxData, cols = starts_with("F"), names_to = "Coefficient", values_to = "value")
+
+AoData <- bind_cols(zernikeData, fluxData)
+
+```
+
+Look at the distributions
+First zernikie coeffcients
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+zernikeLong %>% ggplot(aes(value, fill = Coefficient)) + geom_histogram() + facet_wrap(vars(Coefficient))
+
+
+```
+
+
+Now flux outputs 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+fluxLong %>% ggplot(aes(value, fill = Coefficient)) + geom_histogram() + facet_wrap(vars(Coefficient))
+
+
+```
+
+
+Find correlations
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+descrCor <- cor(zernikeData)
+
+highCorr <- sum(abs(descrCor[upper.tri(descrCor)]) > .999)
+```
+
+
+
+
