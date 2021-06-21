@@ -11,29 +11,42 @@ output:
 library(tidyverse)
 library(R.matlab)
 library(caret)
+library(corrplot)
+library(xtable)
+
 
 ```
 
-Read in .mat file
+
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Read in .mat file
 data <- readMat("data/PLWFS_labdata_61219.mat") 
 
 namesZernike <- paste0("zernikeCoeef", seq(1:dim(data$zernike.coeffs)[[2]]))
 namesFlux <- paste0("FluxCoeef", seq(1:dim(data$output.fluxes)[[2]]))
 
-zernikeData <- data$zernike.coeffs %>% as.tibble() %>% set_names(namesZernike)
+zernikeData <- data$zernike.coeffs %>% as_tibble() %>% set_names(namesZernike)
 zernikeLong <- pivot_longer(zernikeData, cols = starts_with("z"), names_to = "Coefficient", values_to = "value")
 
-fluxData <- data$output.fluxes %>% as.tibble() %>% set_names(namesFlux)
+fluxData <- data$output.fluxes %>% as_tibble() %>% set_names(namesFlux)
 fluxLong <- pivot_longer(fluxData, cols = starts_with("F"), names_to = "Coefficient", values_to = "value")
 
 AoData <- bind_cols(zernikeData, fluxData)
 
 ```
 
-Look at the distributions
-First zernikie coeffcients
+# An all-photonic focal-plane wavefront sensor
+
+Working on AO based on data of Sydney Institute for Astronomy, School of Physics, University of Sydney, from the paper "An all-photonic focal-plane wavefront sensor"
+
+
+# Investigation of data
+
+Look at the distributions 
+
+## Zernike coefficients
+There is no expected distribution of the zernikie coefficients.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -43,27 +56,80 @@ zernikeLong %>% ggplot(aes(value, fill = Coefficient)) + geom_histogram() + face
 
 ```
 
+The observed distribution 
+
+## Flux data
 
 Now flux outputs 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 
 
-fluxLong %>% ggplot(aes(value, fill = Coefficient)) + geom_histogram() + facet_wrap(vars(Coefficient))
+fluxLong %>% ggplot(aes(value, fill = Coefficient)) + geom_histogram() +scale_y_log10() + facet_wrap(vars(Coefficient)) 
+
+
+
+
+fluxLong %>% ggplot(aes(value, fill = Coefficient)) + geom_histogram() + facet_wrap(vars(Coefficient)) 
 
 
 ```
+```
 
 
-Find correlations
+## Find correlations
+### Find high correlations
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 
 
-descrCor <- cor(zernikeData)
+descrCor <- cor(AoData)
 
-highCorr <- sum(abs(descrCor[upper.tri(descrCor)]) > .999)
+
+
+highlyCorDescr <- findCorrelation(descrCor, cutoff = .62)
+filteredAoData <- AoData[,highlyCorDescr]
+
+filteredAoDataCor <- cor(filteredAoData)
+
+corrplot(filteredAoDataCor)
+
 ```
+
+
+### as table
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+upper<-cor(filteredAoData) %>% round(2)
+upper[upper.tri(cor(filteredAoData))]<-""
+upper<-as.data.frame(upper)
+upper
+
+```
+
+### Overview of all correlations
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+
+corrplot(descrCor)
+
+```
+
+Since there is no strong correlation we can use tree algorithms
+
+
+
+
+# Tree based regression
+
+
+## Classical Multivariate Regression
+
+According to https://cran.r-project.org/web/packages/rrr/vignettes/rrr.html 
+
 
 
 
