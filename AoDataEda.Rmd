@@ -13,7 +13,10 @@ library(R.matlab)
 library(caret)
 library(corrplot)
 library(xtable)
-
+#library(oetteR)
+library(caret)
+library(rrr)
+library(feather)
 
 ```
 
@@ -32,6 +35,8 @@ zernikeLong <- pivot_longer(zernikeData, cols = starts_with("z"), names_to = "Co
 fluxData <- data$output.fluxes %>% as_tibble() %>% set_names(namesFlux)
 fluxLong <- pivot_longer(fluxData, cols = starts_with("F"), names_to = "Coefficient", values_to = "value")
 
+write_feather(zernikeData, "data/zernikeData.feather")
+write_feather(fluxData, "data/fluxData.feather")
 AoData <- bind_cols(zernikeData, fluxData)
 
 ```
@@ -74,7 +79,7 @@ fluxLong %>% ggplot(aes(value, fill = Coefficient)) + geom_histogram() + facet_w
 
 
 ```
-```
+
 
 
 ## Find correlations
@@ -126,11 +131,69 @@ Since there is no strong correlation we can use tree algorithms
 # Tree based regression
 
 
-## Classical Multivariate Regression
+## regression with caret - multivariate adaptive regression splines (MARS)
 
-According to https://cran.r-project.org/web/packages/rrr/vignettes/rrr.html 
+According to https://rstudio-pubs-static.s3.amazonaws.com/376822_e229bf5a5d574f7c93e12cb524f726f1.html
+
+ Register CPU cores
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#library(parallel)
+library(doParallel)
+cluster <- makeCluster(detectCores() - 1) ## convention to leave 1 core for OS
+registerDoParallel(cluster)
+
+```
+
+## Random forest
+According to https://stats.stackexchange.com/questions/404054/r-multivariate-random-forest-for-variable-importance a multivariant regression can be calculated with pacakge randomForestSRC
+
+multivar_fit<-rfsrc(cbind(y1,y2,y3,y4)~.,data=bays_data)
+
+multivar_fit<-rfsrc(zernikeData~.,data=fluxData)
+
+```{r}
+library(randomForestSRC)
+set.seed(2021)
+train <- sample(1:nrow(AoData), round(nrow(AoData) * 0.80))
+AoData.grow <- rfsrc(cbind(zernikeCoeef1, zernikeCoeef2, zernikeCoeef3, zernikeCoeef4, zernikeCoeef5, zernikeCoeef6, zernikeCoeef7, zernikeCoeef8, zernikeCoeef9)~., AoData[train, ], ntree =1000)
+AoData.pred <- predict.rfsrc(AoData.grow, AoData[-train , ]) 
+print(AoData.grow)
+print(AoData.pred)
+
+#predValues <- AoData.pred[["yvar"]]
+
+#errorPredVsTest <- predValues-AoData[-train , ] %>% select(zernikeCoeef1, zernikeCoeef2, zernikeCoeef3, zernikeCoeef4, zernikeCoeef5, zernikeCoeef6, zernikeCoeef7, zernikeCoeef8, zernikeCoeef9)
+
+plot(AoData.grow)
+
+
+errZernikeCoeef1 <- AoData.pred[["regrOutput"]][["zernikeCoeef1"]][["predicted"]] -  AoData[-train ,"zernikeCoeef1" ] %>% set_names("errorPredTest")
+errZernikeCoeef2 <- AoData.pred[["regrOutput"]][["zernikeCoeef2"]][["predicted"]] -  AoData[-train ,"zernikeCoeef2" ] %>% set_names("errorPredTest")
+errZernikeCoeef3 <- AoData.pred[["regrOutput"]][["zernikeCoeef3"]][["predicted"]] -  AoData[-train ,"zernikeCoeef3" ] %>% set_names("errorPredTest")
+errZernikeCoeef4 <- AoData.pred[["regrOutput"]][["zernikeCoeef4"]][["predicted"]] -  AoData[-train ,"zernikeCoeef4" ] %>% set_names("errorPredTest")
+errZernikeCoeef5 <- AoData.pred[["regrOutput"]][["zernikeCoeef5"]][["predicted"]] -  AoData[-train ,"zernikeCoeef5" ] %>% set_names("errorPredTest")
+errZernikeCoeef6 <- AoData.pred[["regrOutput"]][["zernikeCoeef6"]][["predicted"]] -  AoData[-train ,"zernikeCoeef6" ] %>% set_names("errorPredTest")
+errZernikeCoeef7 <- AoData.pred[["regrOutput"]][["zernikeCoeef7"]][["predicted"]] -  AoData[-train ,"zernikeCoeef7" ] %>% set_names("errorPredTest")
+errZernikeCoeef8 <- AoData.pred[["regrOutput"]][["zernikeCoeef8"]][["predicted"]] -  AoData[-train ,"zernikeCoeef8" ] %>% set_names("errorPredTest")
+errZernikeCoeef9 <- AoData.pred[["regrOutput"]][["zernikeCoeef9"]][["predicted"]] -  AoData[-train ,"zernikeCoeef9" ] %>% set_names("errorPredTest")
+
+
+totalErr <- bind_rows(errZernikeCoeef1,
+errZernikeCoeef2,
+errZernikeCoeef3,
+errZernikeCoeef4,
+errZernikeCoeef5,
+errZernikeCoeef6,
+errZernikeCoeef7,
+errZernikeCoeef8,
+errZernikeCoeef9,
+)
 
 
 
 
 
+
+sqrt(sum(totalErr^2)/nrow(totalErr))
+```
